@@ -31,5 +31,5 @@
     "expo-env.d.ts",
     ".expo/types/**/*.ts"
   ],
-  "extends": "expo/tsconfig.base"
+  "extends": "./node_modules/expo/tsconfig.base"
 }
