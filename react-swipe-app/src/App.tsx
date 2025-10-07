@@ -26,7 +26,7 @@ function Details({ route }: any) {
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerBackTitleVisible:false }}>
+      <Stack.Navigator screenOptions={{ headerBackVisible: false }}>
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Details" component={Details} />
       </Stack.Navigator>

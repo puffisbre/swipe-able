@@ -1,8 +1,11 @@
+import { Text } from 'react-native';
 import Animated from 'react-native-reanimated';
+
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export function HelloWave() {
   return (
-    <Animated.Text
+    <AnimatedText
       style={{
         fontSize: 28,
         lineHeight: 32,
@@ -14,6 +17,6 @@ export function HelloWave() {
         animationDuration: '300ms',
       }}>
       👋
-    </Animated.Text>
+    </AnimatedText>
   );
 }
