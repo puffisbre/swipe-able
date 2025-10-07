@@ -6,8 +6,8 @@
       "DOM"
     ],
     "jsx": "react-jsx",
-    "moduleResolution": "node16",
-    "module": "node16",
+    "moduleResolution": "bundler",
+    "module": "esnext",
     "allowJs": false,
     "strict": true,
     "noEmit": true,
