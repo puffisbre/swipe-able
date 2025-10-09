@@ -4,6 +4,7 @@ import {
   ScrollView,
   View,
   ActivityIndicator,
+  Image
 } from "react-native";
 import { useState } from "react";
 import { ThemedText } from "@/components/themed-text";
@@ -87,7 +88,7 @@ export default function HomeScreen() {
       <ThemedView style={styles.container}>
         {/* Header with Swipee logo */}
         <ThemedView style={styles.header}>
-          <ThemedText style={styles.logo}>Swipee</ThemedText>
+          <Image source={require("../../assets/images/Logo-big.svg")} />
         </ThemedView>
 
         {/* Main content */}
@@ -97,7 +98,7 @@ export default function HomeScreen() {
           {/* Card container */}
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>
-              Find me the best ____
+              Find me the best _______
             </ThemedText>
 
             {/* Category buttons - flex wrap layout */}
@@ -106,36 +107,36 @@ export default function HomeScreen() {
                 style={[styles.button, styles.restaurantButton]}
                 onPress={() => handleButtonPress("Restaurant")}
               >
-                <ThemedText style={styles.buttonText}>Restaurant</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.restaurantButton]}>Restaurant</ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.activityButton]}
                 onPress={() => handleButtonPress("Activity")}
               >
-                <ThemedText style={styles.buttonText}>Activity</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.activityButton]}>Activity</ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.attractionButton]}
                 onPress={() => handleButtonPress("Attraction")}
               >
-                <ThemedText style={styles.buttonText}>Attraction</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.attractionButton]}>Attraction</ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.movieButton]}
                 onPress={() => handleButtonPress("Movie")}
               >
-                <ThemedText style={styles.buttonText}>Movie</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.movieButton]}>Movie</ThemedText>
               </TouchableOpacity>
 
               {/* Dots for more options */}
-              <ThemedView style={styles.dotsContainer}>
+              {/* <ThemedView style={styles.dotsContainer}>
                 <View style={styles.dot} />
                 <View style={styles.dot} />
                 <View style={styles.dot} />
-              </ThemedView>
+              </ThemedView> */}
             </ThemedView>
           </ThemedView>
 
@@ -208,7 +209,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#FBF9F9",
   },
   container: {
     flex: 1,
@@ -216,19 +217,18 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 20,
+    /* paddingBottom: 20, */
     alignItems: "flex-start",
   },
   logo: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#FF69B4",
+    
   },
   content: {
     flex: 1,
+    margin: 28,
   },
   helpText: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "600",
     color: "#333",
     marginBottom: 30,
@@ -238,20 +238,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 30,
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: "#ddd",
+  /*   shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 4, */
   },
   cardTitle: {
     fontSize: 18,
     color: "#666",
-    marginBottom: 20,
-    textAlign: "center",
+    marginBottom: 32,
+    /* textAlign: "center", */
   },
   buttonContainer: {
     flexDirection: "row",
@@ -267,19 +269,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   restaurantButton: {
-    backgroundColor: "#FF69B4",
+    backgroundColor: "#FFC4E4",
+    color: "#910046ff"
   },
   activityButton: {
-    backgroundColor: "#4ECDC4",
+    backgroundColor: "#CEFFC4",
+    color: "#00731B"
   },
   attractionButton: {
-    backgroundColor: "#45B7D1",
+    backgroundColor: "#C4F4FF",
+    color: "#004887"
   },
   movieButton: {
-    backgroundColor: "#FFA07A",
+    backgroundColor: "#FFEAC4",
+    color: "#7a3b00ff"
   },
   buttonText: {
-    color: "white",
     fontSize: 14,
     fontWeight: "500",
   },
@@ -310,8 +315,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 6,
   },
   mapText: {
     fontSize: 18,
@@ -344,6 +355,9 @@ const styles = StyleSheet.create({
   },
   horizontalList: {
     flexDirection: "row",
+    padding: 12,
+    backgroundColor: "#f7f3f3ff",
+    borderRadius: 12,
   },
   restaurantCard: {
     backgroundColor: "white",
@@ -357,7 +371,7 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
