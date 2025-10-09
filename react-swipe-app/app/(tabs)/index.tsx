@@ -1,107 +1,288 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
+import { FlatList, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from "@/components/hello-wave";
-import ParallaxScrollView from "@/components/parallax-scroll-view";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Link } from "expo-router";
+type Place = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  address?: string;
+  distanceMeters?: number;
+};
+
+const STORAGE_KEY = '@liked_restaurants';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#471d45ff" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
-        />
-      }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Don't Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction
-              title="Action"
-              icon="cube"
-              onPress={() => alert("Action pressed")}
-            />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert("Share pressed")}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert("Delete pressed")}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const insets = useSafeAreaInsets();
+  const [likedPlaces, setLikedPlaces] = useState<Place[]>([]);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const loadLikedPlaces = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        setLikedPlaces(JSON.parse(data));
+      }
+    } catch (e) {
+      console.error('Error loading liked places:', e);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLikedPlaces();
+    }, [])
+  );
+
+  const openInMaps = (lat: number, lon: number, name: string) => {
+    const url = Platform.select({
+      ios: `maps:?q=${name}&ll=${lat},${lon}`,
+      android: `geo:${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(name)})`,
+      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
+    });
+    Linking.openURL(url!);
+  };
+
+  const removePlace = async (id: string) => {
+    try {
+      const updated = likedPlaces.filter((p) => p.id !== id);
+      setLikedPlaces(updated);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error removing place:', e);
+    }
+  };
+
+  const clearAll = async () => {
+    try {
+      setLikedPlaces([]);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.error('Error clearing places:', e);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>My Favorites</Text>
+        <Text style={styles.subtitle}>
+          {likedPlaces.length === 0
+            ? 'No favorites yet'
+            : `${likedPlaces.length} favorite ${likedPlaces.length === 1 ? 'place' : 'places'}`}
+        </Text>
+      </View>
+
+      {likedPlaces.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>❤️</Text>
+          <Text style={styles.emptyTitle}>No favorites yet!</Text>
+          <Text style={styles.emptySubtitle}>Go to the Swipe tab to find restaurants you like</Text>
+        </View>
+      ) : (
+        <>
+          <FlatList
+            data={likedPlaces}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.mainContent}
+                  onPress={() => openInMaps(item.lat, item.lon, item.name)}
+                >
+                  <View style={styles.iconContainer}>
+                    <Text style={styles.icon}>🍽️</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    {item.address ? (
+                      <Text style={styles.sub} numberOfLines={1}>
+                        📍 {item.address}
+                      </Text>
+                    ) : null}
+                    {typeof item.distanceMeters === 'number' && (
+                      <View style={styles.distanceBadge}>
+                        <Text style={styles.distanceText}>
+                          {item.distanceMeters < 1000
+                            ? `${Math.round(item.distanceMeters)} m`
+                            : `${(item.distanceMeters / 1000).toFixed(1)} km`}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.removeButton}
+                  onPress={() => removePlace(item.id)}
+                >
+                  <Text style={styles.removeIcon}>✕</Text>
+                </Pressable>
+              </View>
+            )}
+          />
+          <View style={styles.footer}>
+            <Pressable
+              style={({ pressed }) => [styles.clearButton, pressed && styles.clearButtonPressed]}
+              onPress={clearAll}
+            >
+              <Text style={styles.clearButtonText}>Clear All</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+    </View>
   );
 }
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyEmoji: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  sep: { height: 12 },
+  row: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: 24,
+  },
+  name: {
+    fontWeight: '700',
+    fontSize: 17,
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  sub: {
+    color: '#666',
+    fontSize: 13,
+    fontWeight: '400',
+    marginBottom: 6,
+  },
+  distanceBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  distanceText: {
+    color: '#2E7D32',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  removeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF3F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  removeIcon: {
+    fontSize: 18,
+    color: '#F44336',
+    fontWeight: '700',
+  },
+  footer: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+  },
+  clearButton: {
+    backgroundColor: '#F44336',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  clearButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 
