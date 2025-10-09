@@ -1,18 +1,7 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-let MapView: any = null;
-let Marker: any = null;
-let UrlTile: any = null;
-if (Platform.OS !== 'web') {
-  try {
-    const maps = require('react-native-maps');
-    MapView = maps.default;
-    Marker = maps.Marker;
-    UrlTile = maps.UrlTile;
-  } catch {}
-}
-let Leaflet: any = null;
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type LatLng = { latitude: number; longitude: number };
 type Place = {
@@ -65,33 +54,13 @@ async function fetchNearbyRestaurants(center: LatLng): Promise<Place[]> {
 }
 
 export default function RestaurantsScreen() {
-  const leafletMapRef = useRef<HTMLDivElement | null>(null);
-  const leafletInstanceRef = useRef<any>(null);
+  const insets = useSafeAreaInsets();
   const [loc, setLoc] = useState<LatLng | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
-  const [initialRegion, setInitialRegion] = useState<any>(null);
-  const [webMapReady, setWebMapReady] = useState(Platform.OS !== 'web');
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      // load Leaflet CSS
-      const id = 'leaflet-css';
-      if (!document.getElementById(id)) {
-        const link = document.createElement('link');
-        link.id = id;
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-      try {
-        Leaflet = require('leaflet');
-        setWebMapReady(true);
-      } catch {
-        setWebMapReady(false);
-      }
-    }
     (async () => {
       setError(null);
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -102,46 +71,8 @@ export default function RestaurantsScreen() {
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const center = { latitude: current.coords.latitude, longitude: current.coords.longitude };
       setLoc(center);
-      setInitialRegion({
-        latitude: center.latitude,
-        longitude: center.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      });
     })();
   }, []);
-
-  // Initialize Leaflet map on web when ready
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    if (!webMapReady || !leafletMapRef.current || !initialRegion) return;
-    if (leafletInstanceRef.current) return; // already initialized
-    const L = Leaflet;
-    const map = L.map(leafletMapRef.current).setView([initialRegion.latitude, initialRegion.longitude], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
-    leafletInstanceRef.current = map;
-  }, [webMapReady, initialRegion]);
-
-  // Update Leaflet markers when places change
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const map = leafletInstanceRef.current;
-    if (!map) return;
-    const L = Leaflet;
-    // clear existing layer group if any
-    if ((map as any)._markersGroup) {
-      (map as any)._markersGroup.clearLayers();
-    }
-    const group = L.layerGroup();
-    places.forEach((p) => {
-      L.marker([p.lat, p.lon]).bindPopup(`<b>${p.name}</b><br/>${p.address ?? ''}`).addTo(group);
-    });
-    group.addTo(map);
-    (map as any)._markersGroup = group;
-  }, [places]);
 
   useEffect(() => {
     if (!loc) return;
@@ -164,60 +95,72 @@ export default function RestaurantsScreen() {
     })();
   }, [loc]);
 
+  const openInMaps = (lat: number, lon: number, name: string) => {
+    const scheme = Platform.select({ ios: 'maps:', android: 'geo:' });
+    const url = Platform.select({
+      ios: `maps:?q=${name}&ll=${lat},${lon}`,
+      android: `geo:${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(name)})`,
+      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
+    });
+    Linking.openURL(url!);
+  };
+
   return (
     <View style={styles.container}>
-      {(!MapView && Platform.OS !== 'web') || (Platform.OS === 'web' && !webMapReady) ? (
-        <View style={styles.mapPlaceholder}>
-          <Text>Loading map...</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.title}>Nearby Restaurants</Text>
+        <Text style={styles.subtitle}>{places.length} places found</Text>
+      </View>
+      
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.error}>{error}</Text>
         </View>
-      ) : (
-        <View style={styles.mapWrap}>
-          {initialRegion ? (
-            Platform.OS === 'web' ? (
-              <div ref={leafletMapRef as any} id="leaflet-map" style={{ height: '100%', width: '100%' }} />
-            ) : (
-              <MapView
-                style={{ flex: 1 }}
-                initialRegion={initialRegion}
-                showsUserLocation
-              >
-                <UrlTile
-                  urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  maximumZ={19}
-                  flipY={false}
-                />
-                {places.map((p) => (
-                  <Marker
-                    key={p.id}
-                    coordinate={{ latitude: p.lat, longitude: p.lon }}
-                    title={p.name}
-                    description={p.address}
-                  />
-                ))}
-              </MapView>
-            )
-          ) : (
-            <View style={styles.mapLoading}><ActivityIndicator /></View>
-          )}
+      ) : null}
+      
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B6B" />
+          <Text style={styles.loadingText}>Finding restaurants...</Text>
         </View>
       )}
-      <Text style={styles.title}>Restaurants near you</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {loading && <ActivityIndicator style={{ marginVertical: 8 }} />}
+      
       <FlatList
         data={places}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingVertical: 8 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         ItemSeparatorComponent={() => <View style={styles.sep} />}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => {}}>
+          <Pressable 
+            style={({ pressed }) => [
+              styles.row,
+              pressed && styles.rowPressed
+            ]} 
+            onPress={() => openInMaps(item.lat, item.lon, item.name)}
+          >
+            <View style={styles.iconContainer}>
+              <Text style={styles.icon}>🍽️</Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-              {item.address ? <Text style={styles.sub} numberOfLines={1}>{item.address}</Text> : null}
+              {item.address ? (
+                <Text style={styles.sub} numberOfLines={1}>📍 {item.address}</Text>
+              ) : null}
             </View>
-            {typeof item.distanceMeters === 'number' ? (
-              <Text style={styles.meta}>{Math.round(item.distanceMeters)} m</Text>
-            ) : null}
+            <View style={styles.rightContainer}>
+              {typeof item.distanceMeters === 'number' && (
+                <View style={styles.distanceBadge}>
+                  <Text style={styles.distanceText}>
+                    {item.distanceMeters < 1000 
+                      ? `${Math.round(item.distanceMeters)} m` 
+                      : `${(item.distanceMeters / 1000).toFixed(1)} km`}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.mapLink}>Open in Maps →</Text>
+            </View>
           </Pressable>
         )}
       />
@@ -239,28 +182,125 @@ function haversineMeters(a: LatLng, b: LatLng) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  error: { color: 'tomato', marginBottom: 8 },
-  sep: { height: 8 },
-  row: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 12,
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F8F9FA',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: '#1A1A1A',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: '#FFF3F3',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFCCCC',
+  },
+  errorIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  error: { 
+    color: '#D93025', 
+    fontSize: 14,
+    flex: 1,
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  sep: { height: 12 },
+  row: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
-  name: { fontWeight: '700' },
-  sub: { color: '#555', marginTop: 4 },
-  meta: { color: '#333', fontSize: 12 },
-  mapWrap: { height: 240, borderRadius: 10, overflow: 'hidden', marginBottom: 12 },
-  mapPlaceholder: { height: 240, borderRadius: 10, overflow: 'hidden', marginBottom: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e6e6e6' },
-  mapLoading: { height: 240, alignItems: 'center', justifyContent: 'center' },
+  rowPressed: {
+    backgroundColor: '#F8F9FA',
+    transform: [{ scale: 0.98 }],
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: 24,
+  },
+  name: { 
+    fontWeight: '700', 
+    fontSize: 17,
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  sub: { 
+    color: '#666', 
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  rightContainer: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  distanceBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  distanceText: {
+    color: '#2E7D32',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  mapLink: { 
+    color: '#007AFF', 
+    fontSize: 13, 
+    fontWeight: '600',
+  },
 });
 
 
