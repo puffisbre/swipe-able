@@ -21,6 +21,10 @@ export default function HomeScreen() {
 
   const loadLikedPlaces = async () => {
     try {
+      if (!AsyncStorage) {
+        console.warn('AsyncStorage is not available');
+        return;
+      }
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
         setLikedPlaces(JSON.parse(data));
@@ -49,7 +53,9 @@ export default function HomeScreen() {
     try {
       const updated = likedPlaces.filter((p) => p.id !== id);
       setLikedPlaces(updated);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (AsyncStorage) {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      }
     } catch (e) {
       console.error('Error removing place:', e);
     }
@@ -58,7 +64,9 @@ export default function HomeScreen() {
   const clearAll = async () => {
     try {
       setLikedPlaces([]);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      if (AsyncStorage) {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      }
     } catch (e) {
       console.error('Error clearing places:', e);
     }

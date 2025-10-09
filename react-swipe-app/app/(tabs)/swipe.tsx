@@ -360,6 +360,10 @@ export default function SwipeScreen() {
     if (direction === "right") {
       // Save liked restaurant
       try {
+        if (!AsyncStorage) {
+          console.warn('AsyncStorage is not available');
+          return;
+        }
         const existing = await AsyncStorage.getItem(STORAGE_KEY);
         const likedPlaces = existing ? JSON.parse(existing) : [];
         const updated = [...likedPlaces, item.data];
