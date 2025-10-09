@@ -1,405 +1,296 @@
-import {
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  View,
-  ActivityIndicator,
-  Image
-} from "react-native";
-import { useState } from "react";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { MapComponent } from "@/components/map-component";
-import {
-  fetchNearbyRestaurants,
-  getCurrentLocation,
-  haversineMeters,
-} from "@/utils/restaurant-api";
-import type { LatLng, Place } from "@/utils/restaurant-api";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
+import { FlatList, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type Place = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  address?: string;
+  distanceMeters?: number;
+};
+
+const STORAGE_KEY = '@liked_restaurants';
 
 export default function HomeScreen() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [initialRegion, setInitialRegion] = useState<{
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
-  } | null>(null);
+  const insets = useSafeAreaInsets();
+  const [likedPlaces, setLikedPlaces] = useState<Place[]>([]);
 
-  const handleRestaurantPress = async () => {
-    console.log("Restaurant button pressed!");
+  const loadLikedPlaces = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      console.log("Starting location fetch...");
-
-      // Hämta användarens position
-      const location = await getCurrentLocation();
-      console.log("Location received:", location);
-
-      // Sätt initial region för kartan
-      const region = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      };
-      console.log("Setting initial region:", region);
-      setInitialRegion(region);
-
-      console.log("Fetching restaurants...");
-      // Hämta närliggande restauranger
-      const restaurants = await fetchNearbyRestaurants(location);
-      console.log("Restaurants received:", restaurants.length);
-
-      // Beräkna avstånd och sortera
-      const restaurantsWithDistance = restaurants
-        .map((restaurant) => ({
-          ...restaurant,
-          distanceMeters: haversineMeters(location, {
-            latitude: restaurant.lat,
-            longitude: restaurant.lon,
-          }),
-        }))
-        .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
-
-      console.log("Restaurants with distance:", restaurantsWithDistance.length);
-      setPlaces(restaurantsWithDistance);
-    } catch (err: any) {
-      console.error("Restaurant fetch error:", err);
-      setError(err.message || "Något gick fel vid hämtning av restauranger");
-    } finally {
-      setLoading(false);
-      console.log("Restaurant fetch completed");
+      if (!AsyncStorage) {
+        console.warn('AsyncStorage is not available');
+        return;
+      }
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        setLikedPlaces(JSON.parse(data));
+      }
+    } catch (e) {
+      console.error('Error loading liked places:', e);
     }
   };
 
-  const handleButtonPress = (category: string) => {
-    console.log(`Selected: ${category}`);
-    if (category === "Restaurant") {
-      handleRestaurantPress();
+  useFocusEffect(
+    useCallback(() => {
+      loadLikedPlaces();
+    }, [])
+  );
+
+  const openInMaps = (lat: number, lon: number, name: string) => {
+    const url = Platform.select({
+      ios: `maps:?q=${name}&ll=${lat},${lon}`,
+      android: `geo:${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(name)})`,
+      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
+    });
+    Linking.openURL(url!);
+  };
+
+  const removePlace = async (id: string) => {
+    try {
+      const updated = likedPlaces.filter((p) => p.id !== id);
+      setLikedPlaces(updated);
+      if (AsyncStorage) {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error('Error removing place:', e);
+    }
+  };
+
+  const clearAll = async () => {
+    try {
+      setLikedPlaces([]);
+      if (AsyncStorage) {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      }
+    } catch (e) {
+      console.error('Error clearing places:', e);
     }
   };
 
   return (
-    <ScrollView style={styles.scrollContainer}>
-      <ThemedView style={styles.container}>
-        {/* Header with Swipee logo */}
-        <ThemedView style={styles.header}>
-          <Image source={require("../../assets/images/Logo-big.svg")} />
-        </ThemedView>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>My Favorites</Text>
+        <Text style={styles.subtitle}>
+          {likedPlaces.length === 0
+            ? 'No favorites yet'
+            : `${likedPlaces.length} favorite ${likedPlaces.length === 1 ? 'place' : 'places'}`}
+        </Text>
+      </View>
 
-        {/* Main content */}
-        <ThemedView style={styles.content}>
-          <ThemedText style={styles.helpText}>I'm here to help.</ThemedText>
-
-          {/* Card container */}
-          <ThemedView style={styles.card}>
-            <ThemedText style={styles.cardTitle}>
-              Find me the best _______
-            </ThemedText>
-
-            {/* Category buttons - flex wrap layout */}
-            <ThemedView style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.button, styles.restaurantButton]}
-                onPress={() => handleButtonPress("Restaurant")}
-              >
-                <ThemedText style={[styles.buttonText, styles.restaurantButton]}>Restaurant</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, styles.activityButton]}
-                onPress={() => handleButtonPress("Activity")}
-              >
-                <ThemedText style={[styles.buttonText, styles.activityButton]}>Activity</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, styles.attractionButton]}
-                onPress={() => handleButtonPress("Attraction")}
-              >
-                <ThemedText style={[styles.buttonText, styles.attractionButton]}>Attraction</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, styles.movieButton]}
-                onPress={() => handleButtonPress("Movie")}
-              >
-                <ThemedText style={[styles.buttonText, styles.movieButton]}>Movie</ThemedText>
-              </TouchableOpacity>
-
-              {/* Dots for more options */}
-              {/* <ThemedView style={styles.dotsContainer}>
-                <View style={styles.dot} />
-                <View style={styles.dot} />
-                <View style={styles.dot} />
-              </ThemedView> */}
-            </ThemedView>
-          </ThemedView>
-
-          {/* Location section */}
-          <ThemedView style={styles.locationSection}>
-            <ThemedText style={styles.locationTitle}>Location</ThemedText>
-
-            {/* Debug information */}
-            <ThemedView style={styles.debugContainer}>
-              <ThemedText style={styles.debugText}>
-                Debug: Loading={loading ? "yes" : "no"}, Region=
-                {initialRegion ? "set" : "not set"}, Places={places.length}
-              </ThemedText>
-            </ThemedView>
-
-            {error && (
-              <ThemedView style={styles.errorContainer}>
-                <ThemedText style={styles.errorText}>{error}</ThemedText>
-              </ThemedView>
-            )}
-            <MapComponent
-              initialRegion={initialRegion}
-              places={places}
-              loading={loading}
-              style={styles.mapPlaceholder}
-            />
-            {places.length > 0 && (
-              <ThemedView style={styles.restaurantList}>
-                <ThemedText style={styles.restaurantListTitle}>
-                  Hittade {places.length} restauranger
-                </ThemedText>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.horizontalList}
+      {likedPlaces.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>❤️</Text>
+          <Text style={styles.emptyTitle}>No favorites yet!</Text>
+          <Text style={styles.emptySubtitle}>Go to the Swipe tab to find restaurants you like</Text>
+        </View>
+      ) : (
+        <>
+          <FlatList
+            data={likedPlaces}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.mainContent}
+                  onPress={() => openInMaps(item.lat, item.lon, item.name)}
                 >
-                  {places.slice(0, 5).map((place) => (
-                    <ThemedView key={place.id} style={styles.restaurantCard}>
-                      <ThemedText
-                        style={styles.restaurantName}
-                        numberOfLines={1}
-                      >
-                        {place.name}
-                      </ThemedText>
-                      {place.address && (
-                        <ThemedText
-                          style={styles.restaurantAddress}
-                          numberOfLines={1}
-                        >
-                          {place.address}
-                        </ThemedText>
-                      )}
-                      {typeof place.distanceMeters === "number" && (
-                        <ThemedText style={styles.restaurantDistance}>
-                          {Math.round(place.distanceMeters)} m bort
-                        </ThemedText>
-                      )}
-                    </ThemedView>
-                  ))}
-                </ScrollView>
-              </ThemedView>
+                  <View style={styles.iconContainer}>
+                    <Text style={styles.icon}>🍽️</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    {item.address ? (
+                      <Text style={styles.sub} numberOfLines={1}>
+                        📍 {item.address}
+                      </Text>
+                    ) : null}
+                    {typeof item.distanceMeters === 'number' && (
+                      <View style={styles.distanceBadge}>
+                        <Text style={styles.distanceText}>
+                          {item.distanceMeters < 1000
+                            ? `${Math.round(item.distanceMeters)} m`
+                            : `${(item.distanceMeters / 1000).toFixed(1)} km`}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.removeButton}
+                  onPress={() => removePlace(item.id)}
+                >
+                  <Text style={styles.removeIcon}>✕</Text>
+                </Pressable>
+              </View>
             )}
-          </ThemedView>
-        </ThemedView>
-      </ThemedView>
-    </ScrollView>
+          />
+          <View style={styles.footer}>
+            <Pressable
+              style={({ pressed }) => [styles.clearButton, pressed && styles.clearButtonPressed]}
+              onPress={clearAll}
+            >
+              <Text style={styles.clearButtonText}>Clear All</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+    </View>
   );
 }
 
+
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flex: 1,
-    backgroundColor: "#FBF9F9",
-  },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    backgroundColor: '#F8F9FA',
   },
   header: {
-    paddingTop: 60,
-    /* paddingBottom: 20, */
-    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
   },
-  logo: {
-    
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    letterSpacing: -0.5,
   },
-  content: {
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  emptyContainer: {
     flex: 1,
-    margin: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
   },
-  helpText: {
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 30,
+  emptyEmoji: {
+    fontSize: 80,
+    marginBottom: 20,
   },
-  card: {
-    backgroundColor: "white",
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  sep: { height: 12 },
+  row: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
     borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  icon: {
+    fontSize: 24,
+  },
+  name: {
+    fontWeight: '700',
+    fontSize: 17,
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  sub: {
+    color: '#666',
+    fontSize: 13,
+    fontWeight: '400',
+    marginBottom: 6,
+  },
+  distanceBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  distanceText: {
+    color: '#2E7D32',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  removeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF3F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  removeIcon: {
+    fontSize: 18,
+    color: '#F44336',
+    fontWeight: '700',
+  },
+  footer: {
     padding: 20,
-    marginBottom: 30,
-    borderWidth: 2,
-    borderColor: "#ddd",
-  /*   shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+  },
+  clearButton: {
+    backgroundColor: '#F44336',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4, */
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  cardTitle: {
-    fontSize: 18,
-    color: "#666",
-    marginBottom: 32,
-    /* textAlign: "center", */
+  clearButtonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
-  buttonContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 15,
-    gap: 10,
-  },
-  button: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    minWidth: 80,
-    alignItems: "center",
-  },
-  restaurantButton: {
-    backgroundColor: "#FFC4E4",
-    color: "#910046ff"
-  },
-  activityButton: {
-    backgroundColor: "#CEFFC4",
-    color: "#00731B"
-  },
-  attractionButton: {
-    backgroundColor: "#C4F4FF",
-    color: "#004887"
-  },
-  movieButton: {
-    backgroundColor: "#FFEAC4",
-    color: "#7a3b00ff"
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  dotsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 16,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#ccc",
-  },
-  locationSection: {
-    marginBottom: 30,
-  },
-  locationTitle: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 15,
-  },
-  mapPlaceholder: {
-    height: 200,
-    backgroundColor: "#e8f4f8",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-  mapText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  mapSubtext: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 5,
-  },
-  errorContainer: {
-    backgroundColor: "#ffebee",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  errorText: {
-    color: "#c62828",
-    fontSize: 14,
-  },
-  restaurantList: {
-    marginTop: 15,
-  },
-  restaurantListTitle: {
+  clearButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
-  },
-  horizontalList: {
-    flexDirection: "row",
-    padding: 12,
-    backgroundColor: "#f7f3f3ff",
-    borderRadius: 12,
-  },
-  restaurantCard: {
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 12,
-    marginRight: 12,
-    minWidth: 180,
-    maxWidth: 200,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  restaurantName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  restaurantAddress: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  restaurantDistance: {
-    fontSize: 12,
-    color: "#FF69B4",
-    marginTop: 4,
-    fontWeight: "500",
-  },
-  debugContainer: {
-    backgroundColor: "#f0f0f0",
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  debugText: {
-    fontSize: 12,
-    color: "#666",
-    fontFamily: "monospace",
+    fontWeight: '700',
   },
 });
