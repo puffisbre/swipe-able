@@ -33,6 +33,7 @@ export interface SwipeDeckRef {
   swipeLeft: () => void;
   swipeRight: () => void;
   reset: () => void;
+  rewind: () => void;
 }
 
 interface CardState {
@@ -98,6 +99,16 @@ export const SwipeDeck = forwardRef<SwipeDeckRef, SwipeDeckProps>(
       [currentItem, index, items, loop, onSwipe, onEmpty]
     );
 
+    const rewind = useCallback(() => {
+      if (index > 0) {
+        setIndex(index - 1);
+        setCardState({ x: 0, y: 0, rot: 0, leaving: false });
+      } else if (loop && items.length > 0) {
+        setIndex(items.length - 1);
+        setCardState({ x: 0, y: 0, rot: 0, leaving: false });
+      }
+    }, [index, loop, items.length]);
+
     const fling = useCallback(
       (dir: Direction) => {
         if (!currentItem) return;
@@ -123,8 +134,9 @@ export const SwipeDeck = forwardRef<SwipeDeckRef, SwipeDeckProps>(
         reset: () => {
           setCardState({ x: 0, y: 0, rot: 0, leaving: false });
         },
+        rewind: () => rewind(),
       }),
-      [fling]
+      [fling, rewind]
     );
 
     const handlePointerDown = (e: React.PointerEvent) => {
@@ -314,6 +326,14 @@ export const SwipeDeck = forwardRef<SwipeDeckRef, SwipeDeckProps>(
           }}
         >
           <button
+            onClick={rewind}
+            aria-label="Previous"
+            style={circleBtnStyle("#3498db")}
+            disabled={!loop && index === 0}
+          >
+            ↶
+          </button>
+          <button
             onClick={dislike}
             aria-label="Dislike"
             style={circleBtnStyle("#e74c3c")}
@@ -459,6 +479,12 @@ export const SampleSwipeDemo: React.FC = () => {
           gap: 8,
         }}
       >
+        <button
+          onClick={() => ref.current?.rewind()}
+          style={miniBtn("#f39c12")}
+        >
+          Previous
+        </button>
         <button
           onClick={() => ref.current?.swipeLeft()}
           style={miniBtn("#e74c3c")}
