@@ -2,6 +2,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+// Web shim for codegenNativeComponent issues
+import '@/shim-web';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
