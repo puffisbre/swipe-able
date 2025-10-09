@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   StyleSheet,
+  TouchableOpacity,
 } from "react-native";
 
 type Direction = "left" | "right";
@@ -65,6 +66,55 @@ const SimpleSwipe: SimpleSwipeComponent = ({
     // Reset position for next card
     position.setValue({ x: 0, y: 0 });
     rotate.setValue(0);
+  };
+
+  const handleRewind = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    } else if (loop && items.length > 0) {
+      setCurrentIndex(items.length - 1);
+    }
+    // Reset position
+    position.setValue({ x: 0, y: 0 });
+    rotate.setValue(0);
+  };
+
+  const handleLike = () => {
+    if (!currentItem) return;
+    // Animate like swipe
+    Animated.parallel([
+      Animated.timing(position.x, {
+        toValue: screenWidth * 1.5,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotate, {
+        toValue: maxRotation,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      handleSwipeComplete("right");
+    });
+  };
+
+  const handleDislike = () => {
+    if (!currentItem) return;
+    // Animate dislike swipe
+    Animated.parallel([
+      Animated.timing(position.x, {
+        toValue: -screenWidth * 1.5,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotate, {
+        toValue: -maxRotation,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      handleSwipeComplete("left");
+    });
   };
 
   const panResponder = PanResponder.create({
@@ -202,6 +252,33 @@ const SimpleSwipe: SimpleSwipeComponent = ({
         {/* Card content */}
         {renderCard(currentItem)}
       </Animated.View>
+
+      {/* Control buttons */}
+      <View style={styles.controlsContainer}>
+        <TouchableOpacity
+          style={[styles.controlButton, styles.rewindButton]}
+          onPress={handleRewind}
+          disabled={!loop && currentIndex === 0}
+        >
+          <Text style={styles.controlButtonText}>↶</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlButton, styles.dislikeButton]}
+          onPress={handleDislike}
+          disabled={!currentItem}
+        >
+          <Text style={styles.controlButtonText}>✕</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlButton, styles.likeButton]}
+          onPress={handleLike}
+          disabled={!currentItem}
+        >
+          <Text style={styles.controlButtonText}>❤</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -214,8 +291,8 @@ const styles = StyleSheet.create({
   },
   card: {
     position: "absolute",
-    width: "90%",
-    height: "80%",
+    width: "85%",
+    height: "70%",
   },
   emptyContainer: {
     flex: 1,
@@ -260,6 +337,41 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 32,
     textAlign: "center",
+  },
+  controlsContainer: {
+    position: "absolute",
+    bottom: 40,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    width: "80%",
+    zIndex: 20,
+  },
+  controlButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  rewindButton: {
+    backgroundColor: "#3498db",
+  },
+  dislikeButton: {
+    backgroundColor: "#e74c3c",
+  },
+  likeButton: {
+    backgroundColor: "#2ecc71",
+  },
+  controlButtonText: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
   },
 });
 
