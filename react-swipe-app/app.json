@@ -50,7 +50,8 @@
       "router": {},
       "eas": {
         "projectId": "0aa8dc50-bcf6-4e5c-987d-1a439458eda8"
-      }
+      },
+      "openaiApiKey": ""
     }
   }
 }
