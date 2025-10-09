@@ -1,107 +1,391 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
-
-import { HelloWave } from "@/components/hello-wave";
-import ParallaxScrollView from "@/components/parallax-scroll-view";
+import {
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { useState } from "react";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Link } from "expo-router";
+import { MapComponent } from "@/components/map-component";
+import {
+  fetchNearbyRestaurants,
+  getCurrentLocation,
+  haversineMeters,
+} from "@/utils/restaurant-api";
+import type { LatLng, Place } from "@/utils/restaurant-api";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#471d45ff" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
-        />
-      }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Don't Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction
-              title="Action"
-              icon="cube"
-              onPress={() => alert("Action pressed")}
-            />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert("Share pressed")}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert("Delete pressed")}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [initialRegion, setInitialRegion] = useState<{
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  } | null>(null);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+  const handleRestaurantPress = async () => {
+    console.log("Restaurant button pressed!");
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("Starting location fetch...");
+
+      // Hämta användarens position
+      const location = await getCurrentLocation();
+      console.log("Location received:", location);
+
+      // Sätt initial region för kartan
+      const region = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+      console.log("Setting initial region:", region);
+      setInitialRegion(region);
+
+      console.log("Fetching restaurants...");
+      // Hämta närliggande restauranger
+      const restaurants = await fetchNearbyRestaurants(location);
+      console.log("Restaurants received:", restaurants.length);
+
+      // Beräkna avstånd och sortera
+      const restaurantsWithDistance = restaurants
+        .map((restaurant) => ({
+          ...restaurant,
+          distanceMeters: haversineMeters(location, {
+            latitude: restaurant.lat,
+            longitude: restaurant.lon,
+          }),
+        }))
+        .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+
+      console.log("Restaurants with distance:", restaurantsWithDistance.length);
+      setPlaces(restaurantsWithDistance);
+    } catch (err: any) {
+      console.error("Restaurant fetch error:", err);
+      setError(err.message || "Något gick fel vid hämtning av restauranger");
+    } finally {
+      setLoading(false);
+      console.log("Restaurant fetch completed");
+    }
+  };
+
+  const handleButtonPress = (category: string) => {
+    console.log(`Selected: ${category}`);
+    if (category === "Restaurant") {
+      handleRestaurantPress();
+    }
+  };
+
+  return (
+    <ScrollView style={styles.scrollContainer}>
+      <ThemedView style={styles.container}>
+        {/* Header with Swipee logo */}
+        <ThemedView style={styles.header}>
+          <ThemedText style={styles.logo}>Swipee</ThemedText>
+        </ThemedView>
+
+        {/* Main content */}
+        <ThemedView style={styles.content}>
+          <ThemedText style={styles.helpText}>I'm here to help.</ThemedText>
+
+          {/* Card container */}
+          <ThemedView style={styles.card}>
+            <ThemedText style={styles.cardTitle}>
+              Find me the best ____
+            </ThemedText>
+
+            {/* Category buttons - flex wrap layout */}
+            <ThemedView style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.button, styles.restaurantButton]}
+                onPress={() => handleButtonPress("Restaurant")}
+              >
+                <ThemedText style={styles.buttonText}>Restaurant</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.activityButton]}
+                onPress={() => handleButtonPress("Activity")}
+              >
+                <ThemedText style={styles.buttonText}>Activity</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.attractionButton]}
+                onPress={() => handleButtonPress("Attraction")}
+              >
+                <ThemedText style={styles.buttonText}>Attraction</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.movieButton]}
+                onPress={() => handleButtonPress("Movie")}
+              >
+                <ThemedText style={styles.buttonText}>Movie</ThemedText>
+              </TouchableOpacity>
+
+              {/* Dots for more options */}
+              <ThemedView style={styles.dotsContainer}>
+                <View style={styles.dot} />
+                <View style={styles.dot} />
+                <View style={styles.dot} />
+              </ThemedView>
+            </ThemedView>
+          </ThemedView>
+
+          {/* Location section */}
+          <ThemedView style={styles.locationSection}>
+            <ThemedText style={styles.locationTitle}>Location</ThemedText>
+
+            {/* Debug information */}
+            <ThemedView style={styles.debugContainer}>
+              <ThemedText style={styles.debugText}>
+                Debug: Loading={loading ? "yes" : "no"}, Region=
+                {initialRegion ? "set" : "not set"}, Places={places.length}
+              </ThemedText>
+            </ThemedView>
+
+            {error && (
+              <ThemedView style={styles.errorContainer}>
+                <ThemedText style={styles.errorText}>{error}</ThemedText>
+              </ThemedView>
+            )}
+            <MapComponent
+              initialRegion={initialRegion}
+              places={places}
+              loading={loading}
+              style={styles.mapPlaceholder}
+            />
+            {places.length > 0 && (
+              <ThemedView style={styles.restaurantList}>
+                <ThemedText style={styles.restaurantListTitle}>
+                  Hittade {places.length} restauranger
+                </ThemedText>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.horizontalList}
+                >
+                  {places.slice(0, 5).map((place) => (
+                    <ThemedView key={place.id} style={styles.restaurantCard}>
+                      <ThemedText
+                        style={styles.restaurantName}
+                        numberOfLines={1}
+                      >
+                        {place.name}
+                      </ThemedText>
+                      {place.address && (
+                        <ThemedText
+                          style={styles.restaurantAddress}
+                          numberOfLines={1}
+                        >
+                          {place.address}
+                        </ThemedText>
+                      )}
+                      {typeof place.distanceMeters === "number" && (
+                        <ThemedText style={styles.restaurantDistance}>
+                          {Math.round(place.distanceMeters)} m bort
+                        </ThemedText>
+                      )}
+                    </ThemedView>
+                  ))}
+                </ScrollView>
+              </ThemedView>
+            )}
+          </ThemedView>
+        </ThemedView>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
-  titleContainer: {
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    alignItems: "flex-start",
+  },
+  logo: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#FF69B4",
+  },
+  content: {
+    flex: 1,
+  },
+  helpText: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 30,
+  },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 30,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardTitle: {
+    fontSize: 18,
+    color: "#666",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 15,
+    gap: 10,
+  },
+  button: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  restaurantButton: {
+    backgroundColor: "#FF69B4",
+  },
+  activityButton: {
+    backgroundColor: "#4ECDC4",
+  },
+  attractionButton: {
+    backgroundColor: "#45B7D1",
+  },
+  movieButton: {
+    backgroundColor: "#FFA07A",
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  dotsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
+    paddingHorizontal: 16,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ccc",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
+  locationSection: {
+    marginBottom: 30,
+  },
+  locationTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 15,
+  },
+  mapPlaceholder: {
+    height: 200,
+    backgroundColor: "#e8f4f8",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  mapText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  mapSubtext: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 5,
+  },
+  errorContainer: {
+    backgroundColor: "#ffebee",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  errorText: {
+    color: "#c62828",
+    fontSize: 14,
+  },
+  restaurantList: {
+    marginTop: 15,
+  },
+  restaurantListTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
+  },
+  horizontalList: {
+    flexDirection: "row",
+  },
+  restaurantCard: {
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 12,
+    marginRight: 12,
+    minWidth: 180,
+    maxWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  restaurantName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  restaurantAddress: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+  restaurantDistance: {
+    fontSize: 12,
+    color: "#FF69B4",
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  debugContainer: {
+    backgroundColor: "#f0f0f0",
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  debugText: {
+    fontSize: 12,
+    color: "#666",
+    fontFamily: "monospace",
   },
 });
-
