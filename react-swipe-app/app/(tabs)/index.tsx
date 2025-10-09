@@ -39,7 +39,7 @@ export default function HomeScreen() {
       <ThemedView style={styles.stepContainer}>
         <Link href="/modal">
           <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
+            <ThemedText type="subtitle">Step 2: Dont explore</ThemedText>
           </Link.Trigger>
           <Link.Preview />
           <Link.Menu>
@@ -77,7 +77,6 @@ export default function HomeScreen() {
     </ParallaxScrollView>
   );
 }
-
 const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
@@ -96,3 +95,4 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
 });
+
