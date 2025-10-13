@@ -31,12 +31,28 @@ async function startServer() {
   // Ensure we wait for our server to start
   await server.start();
 
+  // Enable CORS for all routes
+  app.use(
+    cors({
+      origin: process.env.CLIENT_URL || [
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://localhost:8082",
+      ],
+      credentials: true,
+    })
+  );
+
   // Set up our Express middleware to handle CORS, body parsing,
   // and our expressMiddleware function
   app.use(
     "/graphql",
     cors({
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      origin: process.env.CLIENT_URL || [
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://localhost:8082",
+      ],
       credentials: true,
     }),
     express.json(),
