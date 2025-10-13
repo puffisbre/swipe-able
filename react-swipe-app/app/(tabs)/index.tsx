@@ -4,9 +4,10 @@ import {
   ScrollView,
   View,
   ActivityIndicator,
-  Image
+  Image,
 } from "react-native";
 import { useState } from "react";
+import { router } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MapComponent } from "@/components/map-component";
@@ -80,6 +81,8 @@ export default function HomeScreen() {
     console.log(`Selected: ${category}`);
     if (category === "Restaurant") {
       handleRestaurantPress();
+    } else if (category === "Movie") {
+      router.push("/(tabs)/movies");
     }
   };
 
@@ -107,28 +110,40 @@ export default function HomeScreen() {
                 style={[styles.button, styles.restaurantButton]}
                 onPress={() => handleButtonPress("Restaurant")}
               >
-                <ThemedText style={[styles.buttonText, styles.restaurantButton]}>Restaurant</ThemedText>
+                <ThemedText
+                  style={[styles.buttonText, styles.restaurantButton]}
+                >
+                  Restaurant
+                </ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.activityButton]}
                 onPress={() => handleButtonPress("Activity")}
               >
-                <ThemedText style={[styles.buttonText, styles.activityButton]}>Activity</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.activityButton]}>
+                  Activity
+                </ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.attractionButton]}
                 onPress={() => handleButtonPress("Attraction")}
               >
-                <ThemedText style={[styles.buttonText, styles.attractionButton]}>Attraction</ThemedText>
+                <ThemedText
+                  style={[styles.buttonText, styles.attractionButton]}
+                >
+                  Attraction
+                </ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, styles.movieButton]}
                 onPress={() => handleButtonPress("Movie")}
               >
-                <ThemedText style={[styles.buttonText, styles.movieButton]}>Movie</ThemedText>
+                <ThemedText style={[styles.buttonText, styles.movieButton]}>
+                  Movie
+                </ThemedText>
               </TouchableOpacity>
 
               {/* Dots for more options */}
@@ -220,9 +235,7 @@ const styles = StyleSheet.create({
     /* paddingBottom: 20, */
     alignItems: "flex-start",
   },
-  logo: {
-    
-  },
+  logo: {},
   content: {
     flex: 1,
     margin: 28,
@@ -240,7 +253,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     borderWidth: 2,
     borderColor: "#ddd",
-  /*   shadowColor: "#000",
+    /*   shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -270,19 +283,19 @@ const styles = StyleSheet.create({
   },
   restaurantButton: {
     backgroundColor: "#FFC4E4",
-    color: "#910046ff"
+    color: "#910046ff",
   },
   activityButton: {
     backgroundColor: "#CEFFC4",
-    color: "#00731B"
+    color: "#00731B",
   },
   attractionButton: {
     backgroundColor: "#C4F4FF",
-    color: "#004887"
+    color: "#004887",
   },
   movieButton: {
     backgroundColor: "#FFEAC4",
-    color: "#7a3b00ff"
+    color: "#7a3b00ff",
   },
   buttonText: {
     fontSize: 14,
