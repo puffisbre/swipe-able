@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+//här har vi ett interface med olika properties som en film har
 interface Movie {
   id: number;
   title: string;
@@ -21,7 +22,7 @@ interface Movie {
   vote_average: number;
   genre_ids: number[];
 }
-
+//här har vi en lista som olika katgorier av filmer. Siffran är id för varje genre
 const genres: { [key: number]: string } = {
   28: "Action",
   12: "Adventure",
@@ -46,6 +47,7 @@ const genres: { [key: number]: string } = {
 
 const STORAGE_KEY = "@liked_movies";
 
+//Huvudkomponent för skärmen med swipebara filmer.
 export default function MoviesScreen() {
   const [loading, setLoading] = useState(false);
   const [movies, setMovies] = useState<SwipeItem<Movie>[]>([]);
@@ -54,25 +56,47 @@ export default function MoviesScreen() {
   const TMDB_API_KEY = "a07e22bc18f5cb106bfe4cc1f83ad8ed"; // Public demo key
   const TMDB_BASE_URL = "https://api.themoviedb.org/3";
   const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-
+  //här hämtar vi filmer från TMDB API när komponenten mountas.
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
         console.log("Fetching movies from TMDB...");
 
-        const response = await fetch(
-          `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+        // Hämta flera sidor samtidigt (parallellt)
+        const pages = [1, 2, 3, 4, 5]; // Hämta 5 sidor
+        const promises = pages.map((page) =>
+          fetch(
+            `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=${page}`
+          )
         );
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const responses = await Promise.all(promises);
 
-        const data = await response.json();
-        console.log("Movies fetched successfully:", data.results.length);
+        // Kontrollera att alla requests lyckades
+        responses.forEach((response, index) => {
+          if (!response.ok) {
+            throw new Error(
+              `HTTP error on page ${pages[index]}! status: ${response.status}`
+            );
+          }
+        });
 
-        const swipeItems: SwipeItem<Movie>[] = (data.results || []).map(
+        // Konvertera alla responses till JSON
+        const dataPromises = responses.map((response) => response.json());
+        const allData = await Promise.all(dataPromises);
+
+        // Kombinera alla filmer från alla sidor
+        const allMovies = allData.flatMap((data) => data.results || []);
+        console.log(
+          "Movies fetched successfully:",
+          allMovies.length,
+          "movies from",
+          pages.length,
+          "pages"
+        );
+        // Mappa filmer till SwipeItem format
+        const swipeItems: SwipeItem<Movie>[] = allMovies.map(
           (movie: Movie) => ({
             id: String(movie.id),
             data: movie,
@@ -86,16 +110,17 @@ export default function MoviesScreen() {
       }
     })();
   }, []);
-
+  //hanterar swipe händelsen. Sparar filmer som swipats höger i AsyncStorage (not)
   const handleSwipe = async (direction: string, item: SwipeItem<Movie>) => {
     console.log("Swiped", direction, item.data.title);
     if (direction === "right") {
-      // Save liked movie
+      // Sparar den gillade filmen via AsyncStorage. Asyncsotrage ingår i Reactnative. Asynkron lagring av data lokalt på enheten om det är på telefon, annars localstorage i webbläsaren.
       try {
         if (!AsyncStorage) {
           console.warn("AsyncStorage is not available");
           return;
         }
+        // Hämta befintliga gillade filmer
         const existing = await AsyncStorage.getItem(STORAGE_KEY);
         const likedMovies = existing ? JSON.parse(existing) : [];
         const updated = [...likedMovies, item.data];
@@ -105,7 +130,7 @@ export default function MoviesScreen() {
       }
     }
   };
-
+  //Hjälpfunktion för att få genre namn från genre id.
   const getMovieGenres = (genreIds: number[]) => {
     return genreIds
       .slice(0, 3)
@@ -363,3 +388,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+//Felix fil 
