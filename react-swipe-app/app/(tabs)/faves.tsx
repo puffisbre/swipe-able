@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { FlatList, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+
+//Typer för plats. Vi använder samma typer som i restaurants.tsx.
 type Place = {
   id: string;
   name: string;
@@ -13,8 +15,13 @@ type Place = {
   distanceMeters?: number;
 };
 
+//Nyckel för att lagra favoriter i AsyncStorage. 
+//AsyncStorage är en async storage library i React Native för att lagra data lokalt på enheten.
 const STORAGE_KEY = '@liked_restaurants';
 
+//Huvudkomponent för att visa favoriter. 
+//Använder useSafeAreaInsets för att få insets för att säkerställa att innehållet inte skräpar över toppen av skärmen.
+//Safe area är de delar av skärmen som inte är upptagna av statusbar, navigationbar, etc.
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [likedPlaces, setLikedPlaces] = useState<Place[]>([]);
@@ -33,13 +40,16 @@ export default function HomeScreen() {
       console.error('Error loading liked places:', e);
     }
   };
-
+  //Här använder vi useFocusEffect för att köra loadLikedPlaces när komponenten fokuseras.
+  //useFocusEffect är en hook som körs när komponenten fokuseras. Alltså när skärmen blir aktiv.
   useFocusEffect(
     useCallback(() => {
       loadLikedPlaces();
     }, [])
   );
 
+  //Funktion för att öppna platsen i kartan. Kollar vilken platform användaren har och öppnar platsen i rätt karta. 
+  //Som i restaurants.tsx: IOS öppnar i apple maps och android öppnar i google maps.
   const openInMaps = (lat: number, lon: number, name: string) => {
     const url = Platform.select({
       ios: `maps:?q=${name}&ll=${lat},${lon}`,
@@ -49,6 +59,7 @@ export default function HomeScreen() {
     Linking.openURL(url!);
   };
 
+  //Funktion för att ta bort en plats från favoritlistan.
   const removePlace = async (id: string) => {
     try {
       const updated = likedPlaces.filter((p) => p.id !== id);
@@ -61,6 +72,7 @@ export default function HomeScreen() {
     }
   };
 
+  //Funktion för att ta bort alla favoriter från listan. Vi clearar helt enkelt listan här.
   const clearAll = async () => {
     try {
       setLikedPlaces([]);
@@ -72,6 +84,8 @@ export default function HomeScreen() {
     }
   };
 
+  //Här returnerar vi en lista med alla favoriter.
+  //Vi har inte en loader här eftersom vi inte hämtar data från någon API, dock så kollar vi om listan är tom och visar ett meddelande om det.
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -149,7 +163,7 @@ export default function HomeScreen() {
   );
 }
 
-
+//Och längst ner har vi styles för att styla vår komponent, exakt som i restaurants.tsx.
 const styles = StyleSheet.create({
   container: {
     flex: 1,

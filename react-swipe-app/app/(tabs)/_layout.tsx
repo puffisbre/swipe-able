@@ -4,6 +4,13 @@ import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 
+//I den här filen så konfigurerar vi våra tabbar.
+//Vi använder Tabs från expo-router för att konfigurera våra tabbar.
+//Vi använder HapticTab för att få haptiska feedback när man trycker på tabbarna.
+//Vi använder IconSymbol för att visa ikoner för våra tabbar.
+//Vi använder Colors från @/constants/theme för att få färger för våra tabbar.
+
+//Huvudfunktion för att konfigurera våra tabbar.
 export default function TabLayout() {
   return (
     <Tabs

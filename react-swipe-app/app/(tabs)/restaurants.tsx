@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+
+//Typer för latitud och longitud
 type LatLng = { latitude: number; longitude: number };
+//Typer för plats
 type Place = {
   id: string;
   name: string;
@@ -13,9 +16,11 @@ type Place = {
   distanceMeters?: number;
 };
 
+//Funktion för att hämta närliggande restauranger. Använder overpass-api.de som API. 
+//Overpass är en open source API för att hämta data från OpenStreetMap.
+//All data som vi får hämtas från OpenStreetMap.
 async function fetchNearbyRestaurants(center: LatLng): Promise<Place[]> {
   const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-  // 1500m radius
   const RADIUS = 1500;
   const query = `
     [out:json][timeout:25];
@@ -26,6 +31,7 @@ async function fetchNearbyRestaurants(center: LatLng): Promise<Place[]> {
     );
     out center tags;
   `;
+  //Hämtar data från overpass api
   const res = await fetch(OVERPASS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
@@ -33,6 +39,7 @@ async function fetchNearbyRestaurants(center: LatLng): Promise<Place[]> {
   });
   if (!res.ok) throw new Error(`Overpass error: ${res.status}`);
   const data = await res.json();
+  //Datan som hämtas från overpass api konverteras till en array av platser
   const places: Place[] = (data.elements || [])
     .map((el: any) => {
       const lat = el.lat ?? el.center?.lat;
@@ -52,7 +59,7 @@ async function fetchNearbyRestaurants(center: LatLng): Promise<Place[]> {
     .filter(Boolean);
   return places as Place[];
 }
-
+//Huvudkomponent för att visa närliggande restauranger
 export default function RestaurantsScreen() {
   const insets = useSafeAreaInsets();
   const [loc, setLoc] = useState<LatLng | null>(null);
@@ -60,6 +67,7 @@ export default function RestaurantsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
 
+  //Här hämtas platsen närmast användaren för att kunna hämta närliggande restauranger
   useEffect(() => {
     (async () => {
       setError(null);
@@ -74,6 +82,8 @@ export default function RestaurantsScreen() {
     })();
   }, []);
 
+  //Här hämtas närliggande restauranger
+  //Vi kör useEffect för att hämta närliggande restauranger när platsen ändras. Alltså useEffect känner av när loc ändras och kör funktionen.
   useEffect(() => {
     if (!loc) return;
     (async () => {
@@ -95,6 +105,8 @@ export default function RestaurantsScreen() {
     })();
   }, [loc]);
 
+  //Funktion för att öppna platsen i kartan. Kollar vilken platform användaren har och öppnar platsen i rätt karta. 
+  //IOS öppnar i apple maps och android öppnar i google maps.
   const openInMaps = (lat: number, lon: number, name: string) => {
     const scheme = Platform.select({ ios: 'maps:', android: 'geo:' });
     const url = Platform.select({
@@ -105,6 +117,8 @@ export default function RestaurantsScreen() {
     Linking.openURL(url!);
   };
 
+  //Sist returnar vi en lista med alla restauranger.
+  //Vi har även en loader som visar när vi hämtar data.
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -168,6 +182,9 @@ export default function RestaurantsScreen() {
   );
 }
 
+//Funktion för att beräkna avståndet mellan två punkter på jorden. Används för att visa avståndet till restaurangen.
+//Så när du ser "100 m" så betyder det att restaurangen ligger 100 meter från dig.
+
 function haversineMeters(a: LatLng, b: LatLng) {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const R = 6371000;
@@ -181,6 +198,8 @@ function haversineMeters(a: LatLng, b: LatLng) {
   return R * c;
 }
 
+
+//Och längst ner har vi styles för att styla vår komponent.
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
