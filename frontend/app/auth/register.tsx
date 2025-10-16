@@ -58,8 +58,7 @@ export default function RegisterScreen() {
         firstName,
         lastName,
       });
-      // Navigation will be handled by auth state change
-      router.replace("/(tabs)");
+      // Navigation will be handled by AuthGuard
     } catch (error: any) {
       Alert.alert(
         "Registration Failed",

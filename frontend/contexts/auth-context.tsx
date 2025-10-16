@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { graphqlClient } from "@/utils/graphql-client";
 
 // Types
 interface User {
@@ -31,8 +32,7 @@ interface RegisterInput {
   profileImage?: string;
 }
 
-// GraphQL endpoint
-const GRAPHQL_ENDPOINT = "http://localhost:4000/graphql"; // Update with your backend URL
+// GraphQL endpoint is now handled by graphqlClient
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -47,6 +47,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Load stored auth data on mount
   useEffect(() => {
     loadStoredAuth();
+  }, []);
+
+  // Set up auth error callback for GraphQL client
+  useEffect(() => {
+    const handleAuthError = async () => {
+      console.log('Auth error detected, logging out user');
+      // Clear stored data
+      await AsyncStorage.removeItem(TOKEN_KEY);
+      await AsyncStorage.removeItem(USER_KEY);
+      setToken(null);
+      setUser(null);
+    };
+    
+    graphqlClient.setAuthErrorCallback(handleAuthError);
   }, []);
 
   const loadStoredAuth = async () => {
@@ -67,35 +81,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(GRAPHQL_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: `
-            mutation Login($input: LoginInput!) {
-              login(input: $input) {
-                token
-                user {
-                  id
-                  username
-                  email
-                  firstName
-                  lastName
-                  friendCode
-                  profileImage
-                }
-              }
+      const { data, errors } = await graphqlClient.publicRequest(`
+        mutation Login($input: LoginInput!) {
+          login(input: $input) {
+            token
+            user {
+              id
+              username
+              email
+              firstName
+              lastName
+              friendCode
+              profileImage
             }
-          `,
-          variables: {
-            input: { email, password },
-          },
-        }),
+          }
+        }
+      `, {
+        input: { email, password },
       });
-
-      const { data, errors } = await response.json();
 
       if (errors) {
         throw new Error(errors[0].message);
@@ -109,6 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(newToken);
       setUser(newUser);
+      
+      // Navigation will be handled by AuthGuard
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -117,33 +122,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (input: RegisterInput) => {
     try {
-      const response = await fetch(GRAPHQL_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: `
-            mutation Register($input: RegisterInput!) {
-              register(input: $input) {
-                token
-                user {
-                  id
-                  username
-                  email
-                  firstName
-                  lastName
-                  friendCode
-                  profileImage
-                }
-              }
+      const { data, errors } = await graphqlClient.publicRequest(`
+        mutation Register($input: RegisterInput!) {
+          register(input: $input) {
+            token
+            user {
+              id
+              username
+              email
+              firstName
+              lastName
+              friendCode
+              profileImage
             }
-          `,
-          variables: { input },
-        }),
-      });
-
-      const { data, errors } = await response.json();
+          }
+        }
+      `, { input });
 
       if (errors) {
         throw new Error(errors[0].message);
@@ -157,6 +151,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(newToken);
       setUser(newUser);
+      
+      // Navigation will be handled by AuthGuard
     } catch (error) {
       console.error("Registration error:", error);
       throw error;
@@ -165,6 +161,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      // Call logout mutation on server (optional, for logging purposes)
+      try {
+        await graphqlClient.authenticatedRequest(`
+          mutation Logout {
+            logout
+          }
+        `);
+      } catch (error) {
+        // If logout mutation fails, we still want to clear local data
+        console.warn("Logout mutation failed:", error);
+      }
+
       // Clear stored data
       await AsyncStorage.removeItem(TOKEN_KEY);
       await AsyncStorage.removeItem(USER_KEY);

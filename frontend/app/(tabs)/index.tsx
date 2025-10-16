@@ -1,6 +1,7 @@
 import { MapComponent } from "@/components/map-component";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useAuth } from "@/contexts/auth-context";
 import type { Place } from "@/utils/restaurant-api";
 import {
   fetchNearbyRestaurants,
@@ -13,10 +14,12 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert
 } from "react-native";
 
 export default function HomeScreen() {
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -26,6 +29,30 @@ export default function HomeScreen() {
     latitudeDelta: number;
     longitudeDelta: number;
   } | null>(null);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              Alert.alert("Error", "Failed to logout");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleRestaurantPress = async () => {
     console.log("Restaurant button pressed!");
@@ -87,9 +114,20 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.scrollContainer}>
       <ThemedView style={styles.container}>
-        {/* Header with Swipee logo */}
+        {/* Header with Swipee logo and user info */}
         <ThemedView style={styles.header}>
           <Image source={require("../../assets/images/Logo-big.svg")} />
+          <ThemedView style={styles.headerRight}>
+            <ThemedText style={styles.welcomeText}>
+              Welcome, {user?.firstName || 'User'}!
+            </ThemedText>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
         </ThemedView>
 
         {/* Main content */}
@@ -223,8 +261,29 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    /* paddingBottom: 20, */
-    alignItems: "flex-start",
+    paddingBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerRight: {
+    alignItems: "flex-end",
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  logoutButton: {
+    backgroundColor: "#ff4444",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  logoutButtonText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
   },
   logo: {},
   content: {

@@ -30,8 +30,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      // Navigation will be handled by auth state change
-      router.replace("/(tabs)");
+      // Navigation will be handled by AuthGuard
     } catch (error: any) {
       Alert.alert("Login Failed", error.message || "Invalid email or password");
     } finally {
