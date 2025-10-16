@@ -75,6 +75,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="movie-favorites"
+        options={{
+          title: "Movie Faves",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="star.fill" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           href: null,
