@@ -31,6 +31,10 @@ export default function HomeScreen() {
   } | null>(null);
 
   const handleLogout = async () => {
+    console.log("🔴 Logout button pressed!");
+    console.log("🔴 Current user:", user);
+    console.log("🔴 Current auth state:", { user: !!user, token: !!user?.id });
+    
     Alert.alert(
       "Logout",
       "Are you sure you want to logout?",
@@ -44,9 +48,22 @@ export default function HomeScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              console.log("🚀 Starting logout process...");
+              console.log("🚀 Calling logout function...");
+              
               await logout();
+              
+              console.log("🎉 Logout function completed");
+              console.log("🎉 Checking auth state after logout...");
+              
+              // Give a moment for state to update
+              setTimeout(() => {
+                console.log("🎉 Auth state after timeout:", { user: !!user, token: !!user?.id });
+              }, 100);
+              
             } catch (error) {
-              Alert.alert("Error", "Failed to logout");
+              console.error("💥 Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
             }
           },
         },
@@ -126,6 +143,15 @@ export default function HomeScreen() {
               onPress={handleLogout}
             >
               <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.logoutButton, { backgroundColor: '#ff8800', marginTop: 8 }]}
+              onPress={() => {
+                console.log("🧪 Direct logout test");
+                logout();
+              }}
+            >
+              <ThemedText style={styles.logoutButtonText}>Test Logout</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         </ThemedView>

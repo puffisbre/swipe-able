@@ -1,7 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { decode } from 'react-native-jwt-io';
 
-const GRAPHQL_ENDPOINT = "http://localhost:4000/graphql";
+// Get the appropriate backend URL based on environment
+const getBackendUrl = () => {
+  // In development, use localhost for simulator, or your computer's IP for physical device
+  if (__DEV__) {
+    // Try to use the Expo dev server's IP if available
+    const expoHost = Constants.expoConfig?.hostUri?.split(':')[0];
+    if (expoHost && expoHost !== 'localhost' && expoHost !== '127.0.0.1') {
+      return `http://${expoHost}:4000/graphql`;
+    }
+    // Fallback to localhost for simulator
+    return "http://localhost:4000/graphql";
+  }
+  // In production, use your actual backend URL
+  return "https://your-production-backend.com/graphql";
+};
+
+const GRAPHQL_ENDPOINT = getBackendUrl();
 const TOKEN_KEY = "@auth_token";
+
+// Debug log to see which URL is being used
+if (__DEV__) {
+  console.log('🔗 GraphQL Endpoint:', GRAPHQL_ENDPOINT);
+}
 
 interface GraphQLResponse<T = any> {
   data?: T;
@@ -21,32 +44,16 @@ export class GraphQLClient {
     this.onAuthError = callback;
   }
 
-  // Simple JWT decode without external dependency
-  private decodeJWT(token: string): any {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  // Check if token is expired
+  // Check if token is expired using react-native-jwt-io
   private isTokenExpired(token: string): boolean {
     try {
-      const decoded = this.decodeJWT(token);
+      const decoded = decode(token) as any;
       if (!decoded || !decoded.exp) return true;
       
       const currentTime = Date.now() / 1000;
       return decoded.exp < currentTime;
     } catch (error) {
+      console.warn('Error decoding token:', error);
       return true;
     }
   }
@@ -65,7 +72,7 @@ export class GraphQLClient {
       if (includeAuth) {
         const token = await AsyncStorage.getItem(TOKEN_KEY);
         if (token) {
-          // Check if token is expired
+          // Only check token expiration for authenticated requests, not for logout
           if (this.isTokenExpired(token)) {
             console.warn('Token is expired, triggering logout');
             if (this.onAuthError) {

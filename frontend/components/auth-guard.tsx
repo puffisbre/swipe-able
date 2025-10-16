@@ -9,16 +9,27 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
 
   useEffect(() => {
-    if (loading) return; // Don't navigate while loading
+    console.log('🔵 AuthGuard useEffect triggered');
+    console.log('🔵 AuthGuard state:', { loading, isAuthenticated, segments });
+    
+    if (loading) {
+      console.log('🔵 AuthGuard: Still loading auth state...');
+      return; // Don't navigate while loading
+    }
 
     const inAuthGroup = segments[0] === 'auth';
+    console.log('🔵 AuthGuard: isAuthenticated:', isAuthenticated, 'inAuthGroup:', inAuthGroup, 'segments:', segments);
 
     if (!isAuthenticated && !inAuthGroup) {
       // User is not authenticated and trying to access protected route
+      console.log('🔵 AuthGuard: Redirecting to login (not authenticated, not in auth group)');
       router.replace('/auth/login');
     } else if (isAuthenticated && inAuthGroup) {
       // User is authenticated but on auth page, redirect to main app
+      console.log('🔵 AuthGuard: Redirecting to tabs (authenticated, in auth group)');
       router.replace('/(tabs)');
+    } else {
+      console.log('🔵 AuthGuard: No navigation needed');
     }
   }, [isAuthenticated, loading, segments]);
 

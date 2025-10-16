@@ -32,7 +32,7 @@ interface RegisterInput {
   profileImage?: string;
 }
 
-// GraphQL endpoint is now handled by graphqlClient
+// GraphQL endpoint is now handled by graphqlClient with dynamic URL resolution
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -53,11 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleAuthError = async () => {
       console.log('Auth error detected, logging out user');
-      // Clear stored data
-      await AsyncStorage.removeItem(TOKEN_KEY);
-      await AsyncStorage.removeItem(USER_KEY);
-      setToken(null);
-      setUser(null);
+      try {
+        // Clear stored data
+        await AsyncStorage.removeItem(TOKEN_KEY);
+        await AsyncStorage.removeItem(USER_KEY);
+        setToken(null);
+        setUser(null);
+        console.log('User logged out due to auth error');
+      } catch (error) {
+        console.error('Error during auth error logout:', error);
+      }
     };
     
     graphqlClient.setAuthErrorCallback(handleAuthError);
@@ -160,30 +165,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      // Call logout mutation on server (optional, for logging purposes)
-      try {
-        await graphqlClient.authenticatedRequest(`
-          mutation Logout {
-            logout
-          }
-        `);
-      } catch (error) {
-        // If logout mutation fails, we still want to clear local data
-        console.warn("Logout mutation failed:", error);
-      }
-
-      // Clear stored data
-      await AsyncStorage.removeItem(TOKEN_KEY);
-      await AsyncStorage.removeItem(USER_KEY);
-
-      setToken(null);
-      setUser(null);
-    } catch (error) {
-      console.error("Logout error:", error);
-      throw error;
-    }
+    console.log("🔄 Logging out user...");
+    console.log("🔄 Current token:", token ? "EXISTS" : "NULL");
+    console.log("🔄 Current user:", user ? "EXISTS" : "NULL");
+    
+    // Clear state immediately (this will trigger AuthGuard to redirect)
+    console.log("🔄 Setting token to null...");
+    setToken(null);
+    console.log("🔄 Setting user to null...");
+    setUser(null);
+    console.log("✅ User state cleared immediately");
+    
+    // Clear stored data in background (non-blocking)
+    console.log("🔄 Removing token from AsyncStorage...");
+    AsyncStorage.removeItem(TOKEN_KEY).then(() => {
+      console.log("✅ Token removed from AsyncStorage");
+    }).catch(err => 
+      console.error("❌ Error removing token:", err)
+    );
+    
+    console.log("🔄 Removing user from AsyncStorage...");
+    AsyncStorage.removeItem(USER_KEY).then(() => {
+      console.log("✅ User removed from AsyncStorage");
+    }).catch(err => 
+      console.error("❌ Error removing user:", err)
+    );
+    
+    console.log("✅ User logged out successfully");
+    
+    // AuthGuard will detect the state change and redirect to login immediately
   };
+
+  const isAuthenticated = !!token && !!user;
+  
+  // Debug logging for auth state changes
+  useEffect(() => {
+    console.log('🔐 Auth state changed:', { 
+      hasToken: !!token, 
+      hasUser: !!user, 
+      isAuthenticated,
+      loading 
+    });
+  }, [token, user, isAuthenticated, loading]);
 
   const value = {
     user,
@@ -192,7 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
-    isAuthenticated: !!token && !!user,
+    isAuthenticated,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

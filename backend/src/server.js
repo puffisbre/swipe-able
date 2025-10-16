@@ -19,6 +19,22 @@ const httpServer = http.createServer(app);
 // Connect to MongoDB
 connectDB();
 
+// Global CORS middleware for all routes
+app.use(cors({
+  origin: [
+    "http://localhost:3000",     // React web
+    "http://localhost:8081",     // Expo web
+    "http://localhost:19006",    // Expo dev tools
+    "http://localhost:19000",    // Expo dev server
+    "exp://localhost:19000",     // Expo development build
+    "exp://192.168.1.100:19000", // Expo on local network
+    /^http:\/\/.*\.local:.*$/,   // Local network addresses
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 // Create Apollo Server
 const server = new ApolloServer({
   typeDefs,
@@ -31,14 +47,9 @@ async function startServer() {
   // Ensure we wait for our server to start
   await server.start();
 
-  // Set up our Express middleware to handle CORS, body parsing,
-  // and our expressMiddleware function
+  // Set up our Express middleware for GraphQL
   app.use(
     "/graphql",
-    cors({
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
-      credentials: true,
-    }),
     express.json(),
     expressMiddleware(server, {
       context: async ({ req }) => {
