@@ -1,22 +1,20 @@
-import {
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  View,
-  ActivityIndicator,
-  Image,
-} from "react-native";
-import { useState } from "react";
-import { router } from "expo-router";
+import { MapComponent } from "@/components/map-component";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { MapComponent } from "@/components/map-component";
+import type { Place } from "@/utils/restaurant-api";
 import {
   fetchNearbyRestaurants,
   getCurrentLocation,
   haversineMeters,
 } from "@/utils/restaurant-api";
-import type { LatLng, Place } from "@/utils/restaurant-api";
+import { router } from "expo-router";
+import { useState } from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity
+} from "react-native";
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
@@ -158,6 +156,7 @@ export default function HomeScreen() {
           {/* Location section */}
           <ThemedView style={styles.locationSection}>
             <ThemedText style={styles.locationTitle}>Location</ThemedText>
+
 
             {error && (
               <ThemedView style={styles.errorContainer}>

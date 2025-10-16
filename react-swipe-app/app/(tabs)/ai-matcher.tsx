@@ -1,7 +1,8 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import {
   ActivityIndicator,
@@ -16,10 +17,7 @@ import {
   View,
 } from "react-native";
 
-// Typer för latitud och longitud
 type LatLng = { latitude: number; longitude: number };
-
-// Typer för restaurang med AI-fält
 type Restaurant = {
   id: string;
   name: string;
@@ -31,25 +29,31 @@ type Restaurant = {
   matchReason?: string;
   score?: number;
   isAIPowered?: boolean;
-  aiConfidence?: number;
 };
 
-// Nyckel för att lagra favoriter i AsyncStorage
 const STORAGE_KEY = "@liked_restaurants";
 
-// Gemini AI-konfiguration
-const GEMINI_API_KEY = "hemligt";
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+// Gemini AI setup
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey || process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  console.warn("⚠️ Gemini API key not found! AI matching will use fallback.");
+}
+
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+const model = genAI?.getGenerativeModel({ model: "gemini-flash-latest" });
 
 // Riktig Gemini AI-funktion för att matcha restauranger
-//Innan hade Claude gjort en svår alogritm som simulerade en AI. Vilket vi inte ville ha.
 async function getGeminiMatches(
   preferences: string,
   restaurants: Restaurant[]
 ): Promise<Restaurant[]> {
   try {
     console.log("🤖 Using REAL Gemini AI for restaurant matching...");
+    
+    if (!model) {
+      throw new Error("Gemini API not configured");
+    }
     
     if (!restaurants || restaurants.length === 0) {
       console.error("No restaurants provided to Gemini AI");
@@ -62,20 +66,15 @@ async function getGeminiMatches(
       address: r.address || "Address not available",
       distance: r.distanceMeters ? `${Math.round(r.distanceMeters)}m away` : "Distance unknown"
     }));
-//Hör promptar vi till Gemini och säger vad den ska vara.
-    const prompt = `
-Du är en expert på restaurangrekommendationer. Användaren har följande preferenser: "${preferences}"
+
+    const prompt = `Du är en expert på restaurangrekommendationer. Användaren har följande preferenser: "${preferences}"
 
 Här är närliggande restauranger:
 ${JSON.stringify(restaurantData, null, 2)}
 
 Analysera användarens preferenser och välj de 3 BÄSTA matchningarna. 
-För varje matchning, ge:
-1. Restaurangnamn (exakt som i listan)
-2. En kort förklaring varför denna restaurang matchar användarens preferenser
-3. En konfidenspoäng (0-100)
 
-Svara ENDAST med JSON i detta format:
+Svara ENDAST med JSON i detta format (inga extra tecken, inga markdown):
 [
   {
     "name": "Restaurangnamn",
@@ -88,44 +87,60 @@ Välj baserat på:
 - Mattyp och preferenser
 - Avstånd (närmare är bättre)
 - Namn som indikerar rätt typ av mat
-- Allmän passform för användarens humör/preferenser
-`;
+- Allmän passform för användarens humör/preferenser`;
 
     console.log("📤 Sending request to Gemini AI...");
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    let text = response.text();
     
-    console.log("📥 Gemini AI response:", text);
+    console.log("📥 Gemini AI raw response:", text);
 
-    // Här parsar vi Gemini's JSON response.
+    // Clean up the response - remove markdown if present
+    text = text.trim();
+    if (text.startsWith("```json")) {
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    } else if (text.startsWith("```")) {
+      text = text.replace(/```\n?/g, "");
+    }
+
+    // Extract JSON from text if it's wrapped in other text
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      text = jsonMatch[0];
+    }
+
+    console.log("📥 Cleaned response:", text);
+
+    // Parse the JSON response
     const geminiMatches = JSON.parse(text);
     
-    // Här matchar vi Gemini's resultat med våra restauranger.
+    // Match Gemini's results with our restaurants
     const matchedRestaurants: Restaurant[] = [];
     
-    for (const geminiMatch of geminiMatches) {
-      const restaurant = restaurants.find(r => 
-        r.name.toLowerCase() === geminiMatch.name.toLowerCase()
-      );
-      
-      if (restaurant) {
-        matchedRestaurants.push({
-          ...restaurant,
-          matchReason: geminiMatch.matchReason,
-          score: geminiMatch.confidence,
-          aiConfidence: geminiMatch.confidence,
-          isAIPowered: true
-      });
+    if (Array.isArray(geminiMatches)) {
+      for (const geminiMatch of geminiMatches) {
+        const restaurant = restaurants.find(r => 
+          r.name.toLowerCase() === geminiMatch.name.toLowerCase()
+        );
+        
+        if (restaurant) {
+          matchedRestaurants.push({
+            ...restaurant,
+            matchReason: geminiMatch.matchReason,
+            score: geminiMatch.confidence,
+            isAIPowered: true
+          });
+        }
+      }
     }
-  }
 
     console.log(`✅ Gemini AI found ${matchedRestaurants.length} matches`);
     return matchedRestaurants;
 
   } catch (error) {
     console.error("❌ Gemini AI error:", error);
-    throw new Error("Gemini AI failed to process request");
+    throw error; // Let the fallback handle it
   }
 }
 
@@ -187,11 +202,14 @@ async function getAIRestaurantMatches(
   try {
     // Försök först med riktig Gemini AI
     const aiResults = await getGeminiMatches(preferences, restaurants);
-    return aiResults;
+    // Mark as AI-powered
+    return aiResults.map(r => ({ ...r, isAIPowered: true }));
   } catch (error) {
     console.error("Gemini AI failed, using fallback:", error);
     // Fallback till enkel nyckelordsmatching
-    return getFallbackMatches(preferences, restaurants);
+    const fallbackResults = getFallbackMatches(preferences, restaurants);
+    // Mark as fallback
+    return fallbackResults.map(r => ({ ...r, isAIPowered: false }));
   }
 }
 
@@ -582,10 +600,10 @@ export default function AIMatcherScreen() {
                     </View>
                   )}
 
-                  {restaurant.aiConfidence && (
+                  {restaurant.score && restaurant.isAIPowered && (
                     <View style={styles.confidenceBadge}>
                       <Text style={styles.confidenceText}>
-                        🎯 AI Confidence: {restaurant.aiConfidence}%
+                        🎯 AI Confidence: {restaurant.score}%
                       </Text>
                     </View>
                   )}

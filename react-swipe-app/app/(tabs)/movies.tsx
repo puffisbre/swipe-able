@@ -1,28 +1,17 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  Image,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  SafeAreaView,
-} from "react-native";
+import SimpleSwipe, { SwipeItem } from "@/components/ui/simple-swipe";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  runOnJS,
-} from "react-native-reanimated";
-import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-
+//här har vi ett interface med olika properties som en film har
 interface Movie {
   id: number;
   title: string;
@@ -33,7 +22,7 @@ interface Movie {
   vote_average: number;
   genre_ids: number[];
 }
-
+//här har vi en lista som olika katgorier av filmer. Siffran är id för varje genre
 const genres: { [key: number]: string } = {
   28: "Action",
   12: "Adventure",
@@ -56,162 +45,92 @@ const genres: { [key: number]: string } = {
   37: "Western",
 };
 
-export default function MoviesScreen() {
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [likedMovies, setLikedMovies] = useState<Movie[]>([]);
+const STORAGE_KEY = "@liked_movies";
 
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const rotate = useSharedValue(0);
-  const scale = useSharedValue(1);
+//Huvudkomponent för skärmen med swipebara filmer.
+export default function MoviesScreen() {
+  const [loading, setLoading] = useState(false);
+  const [movies, setMovies] = useState<SwipeItem<Movie>[]>([]);
 
   // TMDB API configuration
   const TMDB_API_KEY = "a07e22bc18f5cb106bfe4cc1f83ad8ed"; // Public demo key
   const TMDB_BASE_URL = "https://api.themoviedb.org/3";
   const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-
+  //här hämtar vi filmer från TMDB API när komponenten mountas.
   useEffect(() => {
-    fetchMovies();
-    loadLikedMovies();
-  }, []);
-
-  const fetchMovies = async () => {
-    try {
+    (async () => {
       setLoading(true);
-      console.log("Fetching movies from TMDB...");
+      try {
+        console.log("Fetching movies from TMDB...");
 
-      const response = await fetch(
-        `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
-      );
+        // Hämta flera sidor samtidigt (parallellt)
+        const pages = [1, 2, 3, 4, 5]; // Hämta 5 sidor
+        const promises = pages.map((page) =>
+          fetch(
+            `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=${page}`
+          )
+        );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const responses = await Promise.all(promises);
+
+        // Kontrollera att alla requests lyckades
+        responses.forEach((response, index) => {
+          if (!response.ok) {
+            throw new Error(
+              `HTTP error on page ${pages[index]}! status: ${response.status}`
+            );
+          }
+        });
+
+        // Konvertera alla responses till JSON
+        const dataPromises = responses.map((response) => response.json());
+        const allData = await Promise.all(dataPromises);
+
+        // Kombinera alla filmer från alla sidor
+        const allMovies = allData.flatMap((data) => data.results || []);
+        console.log(
+          "Movies fetched successfully:",
+          allMovies.length,
+          "movies from",
+          pages.length,
+          "pages"
+        );
+        // Mappa filmer till SwipeItem format
+        const swipeItems: SwipeItem<Movie>[] = allMovies.map(
+          (movie: Movie) => ({
+            id: String(movie.id),
+            data: movie,
+          })
+        );
+        setMovies(swipeItems);
+      } catch (error) {
+        console.error("Error fetching movies:", error);
+      } finally {
+        setLoading(false);
       }
-
-      const data = await response.json();
-      console.log("Movies fetched successfully:", data.results.length);
-
-      setMovies(data.results || []);
-    } catch (error) {
-      console.error("Error fetching movies:", error);
-      Alert.alert("Error", "Failed to load movies. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadLikedMovies = async () => {
-    try {
-      const stored = await AsyncStorage.getItem("likedMovies");
-      if (stored) {
-        setLikedMovies(JSON.parse(stored));
+    })();
+  }, []);
+  //hanterar swipe händelsen. Sparar filmer som swipats höger i AsyncStorage (not)
+  const handleSwipe = async (direction: string, item: SwipeItem<Movie>) => {
+    console.log("Swiped", direction, item.data.title);
+    if (direction === "right") {
+      // Sparar den gillade filmen via AsyncStorage. Asyncsotrage ingår i Reactnative. Asynkron lagring av data lokalt på enheten om det är på telefon, annars localstorage i webbläsaren.
+      try {
+        if (!AsyncStorage) {
+          console.warn("AsyncStorage is not available");
+          return;
+        }
+        // Hämta befintliga gillade filmer
+        const existing = await AsyncStorage.getItem(STORAGE_KEY);
+        const likedMovies = existing ? JSON.parse(existing) : [];
+        const updated = [...likedMovies, item.data];
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error("Error saving liked movie:", e);
       }
-    } catch (error) {
-      console.error("Error loading liked movies:", error);
     }
   };
-
-  const saveLikedMovies = async (movies: Movie[]) => {
-    try {
-      await AsyncStorage.setItem("likedMovies", JSON.stringify(movies));
-    } catch (error) {
-      console.error("Error saving liked movies:", error);
-    }
-  };
-
-  const handleLike = () => {
-    const currentMovie = movies[currentIndex];
-    if (currentMovie) {
-      const newLikedMovies = [...likedMovies, currentMovie];
-      setLikedMovies(newLikedMovies);
-      saveLikedMovies(newLikedMovies);
-      console.log("Liked movie:", currentMovie.title);
-    }
-    nextMovie();
-  };
-
-  const handlePass = () => {
-    console.log("Passed on movie:", movies[currentIndex]?.title);
-    nextMovie();
-  };
-
-  const nextMovie = () => {
-    if (currentIndex < movies.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      // Fetch more movies or show end message
-      Alert.alert("No more movies", "You've seen all available movies!");
-    }
-
-    // Reset animation values
-    translateX.value = withSpring(0);
-    translateY.value = withSpring(0);
-    rotate.value = withSpring(0);
-    scale.value = withSpring(1);
-  };
-
-  const previousMovie = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      console.log(
-        "Going back to previous movie:",
-        movies[currentIndex - 1]?.title
-      );
-    } else {
-      Alert.alert(
-        "Already at first movie",
-        "This is the first movie in the list!"
-      );
-    }
-
-    // Reset animation values
-    translateX.value = withSpring(0);
-    translateY.value = withSpring(0);
-    rotate.value = withSpring(0);
-    scale.value = withSpring(1);
-  };
-
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      scale.value = withSpring(0.95);
-    })
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-      rotate.value = event.translationX * 0.1;
-    })
-    .onEnd((event) => {
-      const threshold = screenWidth * 0.3;
-
-      if (event.translationX > threshold) {
-        // Swipe right - like
-        translateX.value = withSpring(screenWidth * 1.5);
-        runOnJS(handleLike)();
-      } else if (event.translationX < -threshold) {
-        // Swipe left - pass
-        translateX.value = withSpring(-screenWidth * 1.5);
-        runOnJS(handlePass)();
-      } else {
-        // Return to center
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        rotate.value = withSpring(0);
-      }
-
-      scale.value = withSpring(1);
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotate: `${rotate.value}deg` },
-      { scale: scale.value },
-    ],
-  }));
-
+  //Hjälpfunktion för att få genre namn från genre id.
   const getMovieGenres = (genreIds: number[]) => {
     return genreIds
       .slice(0, 3)
@@ -225,141 +144,72 @@ export default function MoviesScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF6B6B" />
-          <Text style={styles.loadingText}>Loading movies...</Text>
+          <Text style={styles.loadingText}>Finding movies...</Text>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (movies.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>🎬</Text>
-          <Text style={styles.error}>No movies found</Text>
-        </View>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchMovies}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  const currentMovie = movies[currentIndex];
-
-  if (!currentMovie) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>🎬</Text>
-          <Text style={styles.error}>No more movies!</Text>
-        </View>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchMovies}>
-          <Text style={styles.retryButtonText}>Load More</Text>
-        </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with back button */}
-      <View style={styles.headerContainer}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.header}>Swipe Movies</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <Text style={styles.header}>Swipe Movies</Text>
       <Text style={styles.subheader}>
         {movies.length > 0
           ? `${movies.length} movies found`
           : "No movies found"}
       </Text>
-
       <View style={styles.swipeContainer}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.card, animatedStyle]}>
-            {currentMovie.poster_path && (
-              <Image
-                source={{
-                  uri: `${TMDB_IMAGE_BASE_URL}${currentMovie.poster_path}`,
-                }}
-                style={styles.cardImage}
-                resizeMode="cover"
-                onError={() =>
-                  console.log("Failed to load image for", currentMovie.title)
-                }
+        <SimpleSwipe
+          items={movies}
+          renderCard={(item: SwipeItem<Movie>): React.ReactElement => (
+            <View style={styles.card}>
+              {item.data.poster_path && (
+                <Image
+                  source={{
+                    uri: `${TMDB_IMAGE_BASE_URL}${item.data.poster_path}`,
+                  }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                  onError={() =>
+                    console.log("Failed to load image for", item.data.title)
+                  }
+                  onLoad={() =>
+                    console.log(
+                      "Successfully loaded image for",
+                      item.data.title
+                    )
+                  }
+                />
+              )}
+              <View
+                style={[
+                  styles.imageOverlay,
+                  !item.data.poster_path && styles.noImageBackground,
+                ]}
               />
-            )}
-            <View
-              style={[
-                styles.imageOverlay,
-                !currentMovie.poster_path && styles.noImageBackground,
-              ]}
-            />
-            <View style={styles.cardContent}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.emoji}>🎬</Text>
-              </View>
-              <Text style={styles.title}>{currentMovie.title}</Text>
-
-              <View style={styles.movieMeta}>
-                <Text style={styles.releaseDate}>
-                  {new Date(currentMovie.release_date).getFullYear()}
+              <View style={styles.cardContent}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.emoji}>🎬</Text>
+                </View>
+                <Text style={styles.title}>{item.data.title}</Text>
+                <Text style={styles.address}>
+                  {new Date(item.data.release_date).getFullYear()} • ⭐{" "}
+                  {item.data.vote_average.toFixed(1)}
                 </Text>
-                <Text style={styles.rating}>
-                  ⭐ {currentMovie.vote_average.toFixed(1)}
-                </Text>
+                {getMovieGenres(item.data.genre_ids) && (
+                  <View style={styles.distanceBadge}>
+                    <Text style={styles.distanceText}>
+                      {getMovieGenres(item.data.genre_ids)}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.hint}>👆 Drag or use buttons below</Text>
               </View>
-
-              <Text style={styles.genres}>
-                {getMovieGenres(currentMovie.genre_ids)}
-              </Text>
-
-              <ScrollView
-                style={styles.overviewContainer}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.overview}>{currentMovie.overview}</Text>
-              </ScrollView>
-
-              <Text style={styles.hint}>👆 Drag or use buttons below</Text>
             </View>
-          </Animated.View>
-        </GestureDetector>
-
-        {/* Swipe buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.passButton} onPress={handlePass}>
-            <Text style={styles.buttonText}>❌</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.previousButton,
-              currentIndex === 0 && styles.disabledButton,
-            ]}
-            onPress={previousMovie}
-            disabled={currentIndex === 0}
-          >
-            <Text
-              style={[
-                styles.buttonText,
-                currentIndex === 0 && styles.disabledButtonText,
-              ]}
-            >
-              ↶
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-            <Text style={styles.buttonText}>✓</Text>
-          </TouchableOpacity>
-        </View>
+          )}
+          onSwipe={(item, direction, index) => handleSwipe(direction, item)}
+          onEmpty={() => console.log("No more movies!")}
+        />
       </View>
     </SafeAreaView>
   );
@@ -371,38 +221,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
     paddingHorizontal: 16,
   },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 12,
-    marginBottom: 4,
-  },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
+
   header: {
     fontSize: 28,
     fontWeight: "800",
     color: "#1A1A1A",
+    marginTop: 12,
+    marginBottom: 4,
     letterSpacing: -0.5,
-    flex: 1,
-    textAlign: "center",
   },
-  placeholder: {
-    width: 50, // Same width as back button to center header
-  },
+
   subheader: {
     fontSize: 14,
     color: "#666",
     marginBottom: 12,
     fontWeight: "500",
-    textAlign: "center",
   },
   swipeContainer: {
     flex: 1,
@@ -476,52 +309,29 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  movieMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    width: "100%",
-    paddingHorizontal: 20,
-  },
-  releaseDate: {
+  address: {
     fontSize: 16,
     color: "#F0F0F0",
-    textShadowColor: "rgba(0, 0, 0, 0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  rating: {
-    fontSize: 16,
-    color: "#FFD700",
-    fontWeight: "bold",
-    textShadowColor: "rgba(0, 0, 0, 0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  genres: {
-    fontSize: 16,
-    color: "#FF6B6B",
     textAlign: "center",
     marginBottom: 16,
-    fontWeight: "600",
     textShadowColor: "rgba(0, 0, 0, 0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  overviewContainer: {
-    maxHeight: 120,
-    marginBottom: 16,
+
+  distanceBadge: {
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 8,
   },
-  overview: {
+  distanceText: {
+    color: "#2E7D32",
     fontSize: 14,
-    color: "#E0E0E0",
-    textAlign: "center",
-    lineHeight: 20,
-    textShadowColor: "rgba(0, 0, 0, 0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontWeight: "700",
   },
+
   hint: {
     fontSize: 14,
     color: "#E0E0E0",
@@ -577,71 +387,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 50,
-    paddingVertical: 20,
-    backgroundColor: "#F8F9FA",
-  },
-  passButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#FF4458",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  likeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#4FC3F7",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  previousButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#FFA726",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  disabledButton: {
-    backgroundColor: "#CCCCCC",
-    shadowOpacity: 0.1,
-  },
-  buttonText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-  },
-  disabledButtonText: {
-    color: "#888888",
-  },
 });
+
+//Felix fil 
