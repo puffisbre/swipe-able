@@ -159,14 +159,6 @@ export default function HomeScreen() {
           <ThemedView style={styles.locationSection}>
             <ThemedText style={styles.locationTitle}>Location</ThemedText>
 
-            {/* Debug information */}
-            <ThemedView style={styles.debugContainer}>
-              <ThemedText style={styles.debugText}>
-                Debug: Loading={loading ? "yes" : "no"}, Region=
-                {initialRegion ? "set" : "not set"}, Places={places.length}
-              </ThemedText>
-            </ThemedView>
-
             {error && (
               <ThemedView style={styles.errorContainer}>
                 <ThemedText style={styles.errorText}>{error}</ThemedText>
